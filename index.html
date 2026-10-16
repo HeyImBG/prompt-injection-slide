@@ -248,7 +248,7 @@
     line-height: 1.5; 
   }
 </style>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -504,62 +504,62 @@
   });
 
   updateSlide();
-    // --- TELEFON KUMANDA MODU KONTROLÜ ---
+    // --- TELEFON KUMANDA MODU (WEBSOCKET / MQTT) ---
   const urlParams = new URLSearchParams(window.location.search);
   const remoteTarget = urlParams.get('remote');
+  const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
 
   if (remoteTarget) {
-    // 1. EĞER BU SAYFA IPHONE'DA AÇILDIYSA (KUMANDA EKRANI)
+    // 1. IPHONE (KUMANDA EKRANI)
     document.body.innerHTML = `
       <div style="display:flex; flex-direction:column; height:100vh; justify-content:center; align-items:center; gap:20px; padding:20px; background:#050811;">
-        <div id="status" style="color:#00e5ff; font-weight:bold; font-size:1.2rem; text-align:center;">Bağlanıyor...</div>
+        <div id="status" style="color:#00e5ff; font-weight:bold; font-size:1.3rem; text-align:center;">Bağlanıyor...</div>
         <button id="nextBtn" style="flex:2; width:100%; font-size:2.5rem; background:#00ff88; color:#050811; font-weight:900; border:none; border-radius:16px;">İLERİ ▶</button>
         <button id="prevBtn" style="flex:1; width:100%; font-size:1.8rem; background:rgba(255,255,255,0.1); color:#fff; border:2px solid #38bdf8; border-radius:16px;">◀ GERİ</button>
       </div>
     `;
 
-    const peer = new Peer();
-    peer.on('open', () => {
-      const conn = peer.connect(remoteTarget);
-      conn.on('open', () => {
-        document.getElementById('status').innerText = "🟢 Sunuma Bağlandı";
-        document.getElementById('status').style.color = "#00ff88";
-        
-        document.getElementById('nextBtn').onclick = () => {
-          conn.send('NEXT');
-          if (navigator.vibrate) navigator.vibrate(40); // Küçük titreşim geri bildirimi
-        };
-        document.getElementById('prevBtn').onclick = () => {
-          conn.send('PREV');
-          if (navigator.vibrate) navigator.vibrate(40);
-        };
-      });
-      conn.on('close', () => {
-        document.getElementById('status').innerText = "🔴 Bağlantı Kesildi";
-        document.getElementById('status').style.color = "#ff2a5f";
-      });
+    const client = mqtt.connect(brokerUrl);
+
+    client.on('connect', () => {
+      document.getElementById('status').innerText = "🟢 Sunuma Bağlandı";
+      document.getElementById('status').style.color = "#00ff88";
+
+      document.getElementById('nextBtn').onclick = () => {
+        client.publish('sunu/' + remoteTarget, 'NEXT');
+        if (navigator.vibrate) navigator.vibrate(40);
+      };
+      document.getElementById('prevBtn').onclick = () => {
+        client.publish('sunu/' + remoteTarget, 'PREV');
+        if (navigator.vibrate) navigator.vibrate(40);
+      };
+    });
+
+    client.on('error', () => {
+      document.getElementById('status').innerText = "🔴 Bağlantı Hatası";
+      document.getElementById('status').style.color = "#ff2a5f";
     });
 
   } else {
-    // 2. EĞER BU SAYFA BİLGİSAYARDA AÇILDIYSA (SUNUM EKRANI)
+    // 2. BİLGİSAYAR (SUNUM EKRANI)
     const roomId = 'sunu-' + Math.random().toString(36).substring(2, 8);
-    const peer = new Peer(roomId);
+    const remoteUrl = window.location.href.split('?')[0] + '?remote=' + roomId;
 
-    peer.on('open', (id) => {
-      // iPhone'un gideceği URL (Mevcut sayfanın URL'sine ?remote=ID ekler)
-      const remoteUrl = window.location.href.split('?')[0] + '?remote=' + id;
-      new QRCode(document.getElementById("qrcode"), {
-        text: remoteUrl,
-        width: 130,
-        height: 130
-      });
+    new QRCode(document.getElementById("qrcode"), {
+      text: remoteUrl,
+      width: 130,
+      height: 130
     });
 
-    peer.on('connection', (conn) => {
-      conn.on('data', (data) => {
-        if (data === 'NEXT') changeSlide(1);
-        if (data === 'PREV') changeSlide(-1);
-      });
+    const client = mqtt.connect(brokerUrl);
+    client.on('connect', () => {
+      client.subscribe('sunu/' + roomId);
+    });
+
+    client.on('message', (topic, message) => {
+      const cmd = message.toString();
+      if (cmd === 'NEXT') changeSlide(1);
+      if (cmd === 'PREV') changeSlide(-1);
     });
   }
 
