@@ -446,7 +446,7 @@
 <div class="footer-bar">
   <div class="controls">
   <!-- QR Kod Butonu ve Açılır Kutusu -->
-<div style="position: relative; display: flex; align-items: center; gap: 10px;">
+<div id="remoteBtnContainer" style="position: relative; display: flex; align-items: center; gap: 10px;">
   <button type="button" onclick="document.getElementById('qrPopup').classList.toggle('show')" style="border-color: var(--neon-blue); color: var(--neon-blue);">
     📱 Telefon Kumandası
   </button>
@@ -487,6 +487,8 @@
   function updateSlide() {
     slides.forEach((s, idx) => s.classList.toggle('active', idx === currentSlide));
     slideNumEl.textContent = currentSlide + 1;
+    const remoteBtn = document.getElementById('remoteBtnContainer');
+    if (remoteBtn) remoteBtn.style.display = (currentSlide === 0) ? 'flex' : 'none';
   }
 
   function changeSlide(direction) {
